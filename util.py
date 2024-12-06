@@ -26,17 +26,29 @@ for idx, month in enumerate(ALL_MONTHS):
 
 
 def extract_index_constituents(index, period):
+    index_map = {
+        "NIFTY_200": ["cnx200", "nifty200", "NIFTY_200"],
+        "NIFTY_500": ["cnx500", "nifty500", "NIFTY_500"],
+    }
+
     month, year = period
-    file = BASE_DIR + f"/indices/{index}_{month}{year}.pdf"
-    stonks = pd.DataFrame()
-    with pdfplumber.open(file) as pdf:
-        for page in pdf.pages:
-            table = page.extract_tables()[0]
-            stonks = pd.concat(
-                [stonks, pd.DataFrame(table[1:], columns=table[0])],
-                ignore_index=True,
-            )
-    return stonks
+
+    for alt in index_map.get(index, [index]):
+        file = BASE_DIR + f"/indices/{alt}_{month}{year}.pdf"
+        try:
+            with pdfplumber.open(file) as pdf:
+                stonks = pd.DataFrame()
+                for page in pdf.pages:
+                    table = page.extract_tables()[0]
+                    stonks = pd.concat(
+                        [stonks, pd.DataFrame(table[1:], columns=table[0])],
+                        ignore_index=True,
+                    )
+                return stonks
+        except FileNotFoundError:
+            continue
+
+    raise Exception(f"no data found for {index} in period {period}")
 
 
 def get_index_constituents(index, periods):
@@ -85,8 +97,12 @@ def download_historical_data(stonks_map):
     df.to_pickle(BASE_DIR + "/historical_data.p")
 
 
-def read_historical_data(rolling_return_periods):
+def read_historical_data(rolling_return_periods, index_dates):
     df = pd.read_pickle(BASE_DIR + "/historical_data.p")
+    # Get only the common dates to avoid NaN values from trading holidays
+    df = df.loc[sorted(list(set(index_dates) & set(df.index)))]
+    # Muhurat trades
+    df = df.drop(labels=["2014-10-23", "2015-11-11"])
     percentage_change = df["Adj Close"].pct_change(
         periods=rolling_return_periods, fill_method=None
     )

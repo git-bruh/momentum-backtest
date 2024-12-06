@@ -4,11 +4,17 @@ import util
 
 class Backtest:
     def __init__(
-        self, amount=10000, rebalance_frequency=6, periods_to_consider=20 * 6
+        self,
+        amount=10000,
+        rebalance_frequency=6,
+        periods_to_consider=20 * 6,
+        index_dates=[],
     ):
         self.amount = amount
         self.rebalance_frequency = rebalance_frequency
-        self.historical_df = util.read_historical_data(periods_to_consider)
+        self.historical_df = util.read_historical_data(
+            periods_to_consider, index_dates
+        )
 
     def run(self, years, stonks_map):
         last_pf = set()
@@ -69,7 +75,7 @@ class Backtest:
                 new_pf = set(periodic_returns_df.head(30).index)
 
                 if len(new_pf) != 30:
-                    raise Exception("too many nan values")
+                    raise Exception(f"too many nan values at {index}")
 
                 last_index = index
                 last_qty = {}

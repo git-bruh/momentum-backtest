@@ -62,7 +62,8 @@ class Backtest:
                 on_date = self.historical_df.loc[index]
                 # TODO we can't buy fractional stonks
                 # under_budget = on_date['Adj Close'] <= (amount / 30)
-                under_budget = on_date["Adj Close"] >= 0
+                under_budget = on_date["Adj Close"][stonks] >= 0
+                under_budget = under_budget[under_budget == True].index
                 # TODO historical data for few stonks is missing due to mergers/delisting
                 # drop nan values here
                 periodic_returns_df = (
@@ -72,9 +73,11 @@ class Backtest:
                     * 100
                 )
 
-                new_pf = set(periodic_returns_df.head(30).index)
+                n = 30
 
-                if len(new_pf) != 30:
+                new_pf = set(periodic_returns_df.head(n).index)
+
+                if len(new_pf) != n:
                     raise Exception(f"too many nan values at {index}")
 
                 last_index = index
@@ -83,7 +86,7 @@ class Backtest:
                 # Allocate the amount equally across stonks
                 for stonk in new_pf:
                     price = on_date["Adj Close"][stonk]
-                    last_qty[stonk] = (amount / 30) / price
+                    last_qty[stonk] = (amount / n) / price
 
                 exits = last_pf - new_pf
                 entries = new_pf - last_pf

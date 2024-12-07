@@ -2,6 +2,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import util
 import backtest
+import sys
+import pickle
+import argparse
 
 YEARS = [2014, 2015, 2016, 2018, 2019, 2020, 2021, 2022, 2023, 2024]
 # Though we have the index data for each month, we follow the regular
@@ -10,15 +13,18 @@ MONTHS = ["Mar", "Sep"]
 
 YEARS = [2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021]
 
-INDEX = "NIFTY_200"
-ROLLING_RETURNS_PERIOD = 20 * 12 * 1
+parser = argparse.ArgumentParser(description="backtester")
+parser.add_argument("--index-universe", default="NIFTY 500", type=str)
+parser.add_argument("--comparison-period-months", default=12, type=int)
+parser.add_argument("--num-stocks", default=30, type=int)
+parser.add_argument("--rebalance-frequency-months", default=6, type=int)
+parser.add_argument("--consider-returns-months", default=6, type=int)
+args = parser.parse_args()
 
 periods = []
 for year in YEARS:
     for month in MONTHS:
         periods.append((month, year))
-
-stonks_map = util.get_index_constituents(INDEX, periods)
 
 nifty200 = util.read_index_data(
     "data/NIFTY200 MOMENTUM 30_Historical_PR_01122009to03122024.csv"
@@ -29,28 +35,35 @@ nifty50 = util.read_index_data(
 
 try:
     backtest = backtest.Backtest(
-        rebalance_frequency=1,
-        periods_to_consider=20 * 1,
+        rebalance_frequency=args.rebalance_frequency_months,
+        periods_to_consider=20 * args.consider_returns_months,
+        num_stocks=args.num_stocks,
         index_dates=nifty50.index,
     )
 except FileNotFoundError:
     util.download_historical_data(stonks_map)
-    backtest = backtest.Backtest()
+    print("Historical data downloaded")
+    sys.exit()
 
 pf_nav = backtest.run(YEARS, stonks_map)
 
 df = pd.DataFrame(
     {
-        "N200BRUH30": pf_nav,
+        "N500BRUH30": pf_nav,
         "NIFTY50 PR": nifty50.loc[pf_nav.index]["Close"],
         "N200MOM30 PR": nifty200.loc[pf_nav.index]["Close"],
     }
 )
 
-(df.pct_change(periods=ROLLING_RETURNS_PERIOD, fill_method=None) * 100).plot()
-plt.title(f"Rolling Returns ({ROLLING_RETURNS_PERIOD // 20} Months)")
+(
+    df.pct_change(periods=20 * args.comparison_period_months, fill_method=None)
+    * 100
+).plot()
+plt.title(
+    f"{args.consider_returns_months} Mo. Return, {args.rebalance_frequency_months} Mo. Rebalance - {args.num_stocks} Stocks"
+)
 plt.xlabel("Date")
-plt.ylabel("Rolling Returns")
+plt.ylabel(f"Rolling Returns ({args.comparison_period_months}) Months)")
 plt.legend()
 plt.grid(True)
 plt.savefig("returns.png")

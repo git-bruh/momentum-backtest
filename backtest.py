@@ -8,6 +8,7 @@ class Backtest:
         amount=10000,
         rebalance_frequency=6,
         periods_to_consider=20 * 6,
+        num_stocks=30,
         index_dates=[],
     ):
         self.amount = amount
@@ -15,6 +16,7 @@ class Backtest:
         self.historical_df = util.read_historical_data(
             periods_to_consider, index_dates
         )
+        self.num_stocks = num_stocks
 
     def run(self, years, stonks_map):
         last_pf = set()
@@ -59,11 +61,23 @@ class Backtest:
                 if skip:
                     continue
 
-                on_date = self.historical_df.loc[index]
+                filter = []
+                for col in (
+                    "Adj Close",
+                    "DMA 200",
+                    "Percentage Change",
+                    "Positive Closing",
+                ):
+                    for stonk in stonks:
+                        filter.append((col, stonk))
+                on_date = self.historical_df.loc[index][filter]
+
                 # TODO we can't buy fractional stonks
                 # under_budget = on_date['Adj Close'] <= (amount / 30)
-                under_budget = on_date["Adj Close"][stonks] >= 0
-                under_budget = under_budget[under_budget == True].index
+                under_budget = on_date["Positive Closing"] & (
+                    on_date["Adj Close"] > on_date["DMA 200"]
+                )
+
                 # TODO historical data for few stonks is missing due to mergers/delisting
                 # drop nan values here
                 periodic_returns_df = (
@@ -73,12 +87,9 @@ class Backtest:
                     * 100
                 )
 
-                n = 30
+                n = self.num_stocks
 
                 new_pf = set(periodic_returns_df.head(n).index)
-
-                if len(new_pf) != n:
-                    raise Exception(f"too many nan values at {index}")
 
                 last_index = index
                 last_qty = {}
@@ -87,6 +98,20 @@ class Backtest:
                 for stonk in new_pf:
                     price = on_date["Adj Close"][stonk]
                     last_qty[stonk] = (amount / n) / price
+
+                if len(new_pf) < n:
+                    print(
+                        f"too less eligible stocks at {index}, want {n} got {len(new_pf)}: {new_pf}"
+                    )
+                    # add the remaining amount to LIQUIDBEES
+                    last_qty["LIQUIDBEES.NS"] = (amount / n) * (
+                        n - len(new_pf)
+                    )
+                    new_pf.add("LIQUIDBEES.NS")
+                elif len(new_pf) > n:
+                    raise Exception(
+                        "{len(new_pf)} stocks exceed limit {n} at {index}: {new_pf}"
+                    )
 
                 exits = last_pf - new_pf
                 entries = new_pf - last_pf

@@ -64,7 +64,7 @@ def get_index_constituents(index, periods):
             month, year = period
             if year not in stonks_map:
                 stonks_map[year] = [None] * 12
-            stonks_map[year][MONTHS_MAP[month]] = set(df["Symbol"])
+            stonks_map[year][MONTHS_MAP[month]] = list(df["Symbol"])
     return stonks_map
 
 
@@ -85,9 +85,9 @@ def find_closest_index_stonks(stonks_map, date):
 def download_historical_data(stonks_map):
     stonks = set()
     for year in stonks_map:
-        for stonks_set in stonks_map[year]:
-            if stonks_set is not None:
-                stonks |= stonks_set
+        for stonks_list in stonks_map[year]:
+            if stonks_list is not None:
+                stonks |= set(stonks_list)
 
     print(f"Downloading data for {len(stonks)} stonks: {stonks}")
 
@@ -103,12 +103,27 @@ def read_historical_data(rolling_return_periods, index_dates):
     df = df.loc[sorted(list(set(index_dates) & set(df.index)))]
     # Muhurat trades
     df = df.drop(labels=["2014-10-23", "2015-11-11"])
+
+    # Dummy entry for liquidbees
+    df.loc[:, ("Adj Close", "LIQUIDBEES.NS")] = [1] * len(df.index)
+
     percentage_change = df["Adj Close"].pct_change(
         periods=rolling_return_periods, fill_method=None
     )
     df[
         [("Percentage Change", stonk) for stonk in percentage_change.columns]
     ] = percentage_change
+
+    dma200 = df["Adj Close"].ewm(span=200, adjust=False).mean()
+    df[[("DMA 200", stonk) for stonk in dma200.columns]] = dma200
+
+    positive_closing = (df["Adj Close"].diff() > 0).rolling(
+        window=rolling_return_periods
+    ).sum() > (rolling_return_periods / 2)
+    df[[("Positive Closing", stonk) for stonk in positive_closing.columns]] = (
+        positive_closing
+    )
+
     return df.copy()
 
 

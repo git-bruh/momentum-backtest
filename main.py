@@ -31,6 +31,12 @@ stonks_map = util.get_index_constituents(args.index_universe, periods)
 nifty200 = util.read_index_data(
     "data/NIFTY200 MOMENTUM 30_Historical_PR_01122009to03122024.csv"
 )
+nifty500 = util.read_index_data(
+    "data/NIFTY500 MOMENTUM 50_Historical_PR_01122006to14122024.csv"
+)
+niftymidcap150 = util.read_index_data(
+    "data/NIFTY MIDCAP150 MOMENTUM 50_Historical_PR_01122006to14122024.csv"
+)
 nifty50 = util.read_index_data(
     "data/NIFTY 50_Historical_PR_01122012to06122024.csv"
 )
@@ -52,8 +58,10 @@ pf_nav = backtest.run(YEARS, stonks_map)
 df = pd.DataFrame(
     {
         "BRUHMOMENTUM": pf_nav,
-        "NIFTY50 PR": nifty50.loc[pf_nav.index]["Close"],
+        #"NIFTY50 PR": nifty50.loc[pf_nav.index]["Close"],
         "N200MOM30 PR": nifty200.loc[pf_nav.index]["Close"],
+        "N500MOM50 PR": nifty500.loc[pf_nav.index]["Close"],
+        #"NM150MOM50 PR": niftymidcap150.loc[pf_nav.index]["Close"],
     }
 )
 

@@ -26,6 +26,8 @@ for year in YEARS:
     for month in MONTHS:
         periods.append((month, year))
 
+stonks_map = util.get_index_constituents(args.index_universe, periods)
+
 nifty200 = util.read_index_data(
     "data/NIFTY200 MOMENTUM 30_Historical_PR_01122009to03122024.csv"
 )
@@ -49,7 +51,7 @@ pf_nav = backtest.run(YEARS, stonks_map)
 
 df = pd.DataFrame(
     {
-        "N500BRUH30": pf_nav,
+        "BRUHMOMENTUM": pf_nav,
         "NIFTY50 PR": nifty50.loc[pf_nav.index]["Close"],
         "N200MOM30 PR": nifty200.loc[pf_nav.index]["Close"],
     }
@@ -60,7 +62,7 @@ df = pd.DataFrame(
     * 100
 ).plot()
 plt.title(
-    f"{args.consider_returns_months} Mo. Return, {args.rebalance_frequency_months} Mo. Rebalance - {args.num_stocks} Stocks"
+    f"{args.consider_returns_months} Mo. Return, {args.rebalance_frequency_months} Mo. Rebalance - {args.num_stocks} Stocks ({args.index_universe})"
 )
 plt.xlabel("Date")
 plt.ylabel(f"Rolling Returns ({args.comparison_period_months}) Months)")

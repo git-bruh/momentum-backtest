@@ -53,6 +53,10 @@ def extract_index_constituents(index, period):
 
 def get_index_constituents(index, periods):
     stonks_map = {}
+    renamed = pd.read_csv(
+        BASE_DIR + "/namechange.csv", index_col=["NCH_PREV_NAME"]
+    )
+    renamed = renamed.loc[~renamed.index.duplicated(keep="last")]
     with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
         for period, df in zip(
             periods,
@@ -61,10 +65,43 @@ def get_index_constituents(index, periods):
                 ((index, period) for period in periods),
             ),
         ):
+            for index, row in df.iterrows():
+                # Confusion between two Bajaj Auto stocks
+                # https://www.bajajgroup.company/core-companies/bajaj-holdings-and-investment-limited
+                # KPIT -> BSOFT, not KPITTECH
+                # MAX -> MFSL, MAXINDIA merger MAXIND
+                if row["Symbol"] in ("BAJAJ-AUTO", "KPITTECH", "MAXINDIA"):
+                    continue
+
+                name = row["Security Name"]
+                names = [
+                    name,
+                    name.replace("Ltd.", "Limited"),
+                ]
+                for name in names:
+                    try:
+                        renamed_stock = renamed.loc[name]
+                    except KeyError:
+                        continue
+
+                    print(
+                        f"Symbol {row['Symbol']} {row['Security Name']} renamed to {renamed_stock['NCH_SYMBOL']} {renamed_stock['NCH_NEW_NAME']}"
+                    )
+
+                    df.at[index, "Symbol"] = renamed_stock["NCH_SYMBOL"]
+                    break
+
             month, year = period
             if year not in stonks_map:
                 stonks_map[year] = [None] * 12
+
+            if len(set(df["Symbol"])) != len(list(df["Symbol"])):
+                raise Exception(
+                    f"Have duplicate symbols on ({period}): {list(df['Symbol'])}"
+                )
+
             stonks_map[year][MONTHS_MAP[month]] = list(df["Symbol"])
+
     return stonks_map
 
 

@@ -1,5 +1,6 @@
 import pdfplumber
 import pandas as pd
+import numpy as np
 import multiprocessing
 import yfinance
 
@@ -23,6 +24,8 @@ ALL_MONTHS = [
 MONTHS_MAP = {}
 for idx, month in enumerate(ALL_MONTHS):
     MONTHS_MAP[month] = idx
+
+PERIODS_IN_MONTH = 21
 
 
 def extract_index_constituents(index, period):
@@ -144,21 +147,41 @@ def read_historical_data(rolling_return_periods, index_dates):
     # Dummy entry for liquidbees
     df.loc[:, ("Adj Close", "LIQUIDBEES.NS")] = [1] * len(df.index)
 
-    percentage_change = df["Adj Close"].pct_change(
-        periods=rolling_return_periods, fill_method=None
+    def set_column(name, col):
+        df[[(name, stonk) for stonk in col.columns]] = col
+
+    set_column(
+        "Percentage Change",
+        df["Adj Close"].pct_change(
+            periods=rolling_return_periods, fill_method=None
+        ),
     )
-    df[
-        [("Percentage Change", stonk) for stonk in percentage_change.columns]
-    ] = percentage_change
-
-    dma200 = df["Adj Close"].ewm(span=200, adjust=False).mean()
-    df[[("DMA 200", stonk) for stonk in dma200.columns]] = dma200
-
-    positive_closing = (df["Adj Close"].diff() > 0).rolling(
-        window=rolling_return_periods
-    ).sum() > (rolling_return_periods / 2)
-    df[[("Positive Closing", stonk) for stonk in positive_closing.columns]] = (
-        positive_closing
+    set_column(
+        "Std. Dev 12 Months",
+        np.log(df["Adj Close"])
+        .pct_change()
+        .rolling(PERIODS_IN_MONTH * 12)
+        .std()
+        * ((PERIODS_IN_MONTH * 12) ** 0.5),
+    )
+    set_column(
+        "Momentum Ratio 6 Months",
+        ((df["Adj Close"] / df["Adj Close"].shift(PERIODS_IN_MONTH * 6)) - 1)
+        / df["Std. Dev 12 Months"],
+    )
+    set_column(
+        "Momentum Ratio 12 Months",
+        ((df["Adj Close"] / df["Adj Close"].shift(PERIODS_IN_MONTH * 12)) - 1)
+        / df["Std. Dev 12 Months"],
+    )
+    set_column("DMA 50", df["Adj Close"].ewm(span=50, adjust=False).mean())
+    set_column("DMA 200", df["Adj Close"].ewm(span=200, adjust=False).mean())
+    set_column(
+        "Positive Closing",
+        (df["Adj Close"].diff() > 0)
+        .rolling(window=rolling_return_periods)
+        .sum()
+        > (rolling_return_periods / 2),
     )
 
     return df.copy()

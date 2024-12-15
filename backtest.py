@@ -7,7 +7,7 @@ class Backtest:
         self,
         amount=10000,
         rebalance_frequency=6,
-        periods_to_consider=20 * 6,
+        periods_to_consider=util.PERIODS_IN_MONTH * 6,
         num_stocks=30,
         index_dates=[],
     ):
@@ -64,32 +64,60 @@ class Backtest:
                 filter = []
                 for col in (
                     "Adj Close",
+                    "DMA 50",
                     "DMA 200",
                     "Percentage Change",
                     "Positive Closing",
+                    "Momentum Ratio 6 Months",
+                    "Momentum Ratio 12 Months",
                 ):
                     for stonk in stonks:
                         filter.append((col, stonk))
                 on_date = self.historical_df.loc[index][filter]
-
-                # TODO we can't buy fractional stonks
-                # under_budget = on_date['Adj Close'] <= (amount / 30)
-                under_budget = on_date["Positive Closing"] & (
-                    on_date["Adj Close"] > on_date["DMA 200"]
-                )
-
-                # TODO historical data for few stonks is missing due to mergers/delisting
-                # drop nan values here
-                periodic_returns_df = (
-                    on_date["Percentage Change"][under_budget]
-                    .sort_values(ascending=False)
-                    .dropna()
-                    * 100
-                )
-
                 n = self.num_stocks
 
-                new_pf = set(periodic_returns_df.head(n).index)
+                if False:
+                    momentum_ratio = on_date["Momentum Ratio 12 Months"]
+                    zscore_12mo = (
+                        momentum_ratio - momentum_ratio.mean()
+                    ) / momentum_ratio.std()
+
+                    momentum_ratio = on_date["Momentum Ratio 6 Months"]
+                    zscore_6mo = (
+                        momentum_ratio - momentum_ratio.mean()
+                    ) / momentum_ratio.std()
+
+                    normalized_zscore = (
+                        (0.5 * zscore_12mo) + (0.5 * zscore_6mo)
+                    ).map(
+                        lambda score: (
+                            (1 + score) if score >= 0 else (1 - score) ** -1
+                        )
+                    )
+
+                    new_pf = set(
+                        normalized_zscore.sort_values(ascending=False)
+                        .dropna()
+                        .head(n)
+                        .index
+                    )
+                else:
+                    # TODO we can't buy fractional stonks
+                    # filtered = on_date['Adj Close'] <= (amount / 30)
+                    filtered = on_date["Positive Closing"] & (
+                        on_date["Adj Close"] > on_date["DMA 200"]
+                    )
+
+                    # TODO historical data for few stonks is missing due to mergers/delisting
+                    # drop nan values here
+                    periodic_returns_df = (
+                        on_date["Percentage Change"][filtered]
+                        .sort_values(ascending=False)
+                        .dropna()
+                        * 100
+                    )
+
+                    new_pf = set(periodic_returns_df.head(n).index)
 
                 last_index = index
                 last_qty = {}

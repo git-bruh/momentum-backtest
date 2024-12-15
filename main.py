@@ -44,7 +44,8 @@ nifty50 = util.read_index_data(
 try:
     backtest = backtest.Backtest(
         rebalance_frequency=args.rebalance_frequency_months,
-        periods_to_consider=20 * args.consider_returns_months,
+        periods_to_consider=util.PERIODS_IN_MONTH
+        * args.consider_returns_months,
         num_stocks=args.num_stocks,
         index_dates=nifty50.index,
     )
@@ -58,10 +59,10 @@ pf_nav = backtest.run(YEARS, stonks_map)
 df = pd.DataFrame(
     {
         "BRUHMOMENTUM": pf_nav,
-        #"NIFTY50 PR": nifty50.loc[pf_nav.index]["Close"],
+        # "NIFTY50 PR": nifty50.loc[pf_nav.index]["Close"],
         "N200MOM30 PR": nifty200.loc[pf_nav.index]["Close"],
         "N500MOM50 PR": nifty500.loc[pf_nav.index]["Close"],
-        #"NM150MOM50 PR": niftymidcap150.loc[pf_nav.index]["Close"],
+        # "NM150MOM50 PR": niftymidcap150.loc[pf_nav.index]["Close"],
     }
 )
 
